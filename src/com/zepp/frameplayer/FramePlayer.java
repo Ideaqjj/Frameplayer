@@ -640,6 +640,8 @@ public class FramePlayer {
             }
         }
 
+        int prevBufferIndex = -1; // hold the index of previous buffer.
+
         while (canLoopContinue()){
             putOneFrameToDecoder();
             int bufferIndex = takeOneFrameFromDecoder();
@@ -672,12 +674,30 @@ public class FramePlayer {
                 }
                 if(seekCompleted){
 //                    onPositionUpdate(mCurPresentationTimeUs);
-                    mDecoder.releaseOutputBuffer(bufferIndex, true);
+
+                    // if client request to seek to EOS, then render surface will be black.
+                    // buffer one frame to make sure we can display the last frame to surface even reach EOS.
+                    if(prevBufferIndex != -1){
+                        if(isDecoderReachEOS()){
+                            mDecoder.releaseOutputBuffer(prevBufferIndex, true);
+                            mDecoder.releaseOutputBuffer(bufferIndex,false);
+                        }else{
+                            mDecoder.releaseOutputBuffer(prevBufferIndex, false);
+                            mDecoder.releaseOutputBuffer(bufferIndex, true);
+                        }
+                    }else{
+                        mDecoder.releaseOutputBuffer(bufferIndex, true);
+                    }
+
                     if(mOnSeekCompleteListener != null)
                         mOnSeekCompleteListener.onSeekComplete(this);
                     return;
                 }else{
-                    mDecoder.releaseOutputBuffer(bufferIndex, false); // don't render to surface
+                    // release previous buffer
+                    if(prevBufferIndex != -1){
+                        mDecoder.releaseOutputBuffer(prevBufferIndex, false); // don't render to surface
+                    }
+                    prevBufferIndex = bufferIndex;
                 }
             }
         }
